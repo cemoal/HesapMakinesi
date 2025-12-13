@@ -36,34 +36,6 @@ class MathStep:
             "substeps": [s.to_dict() for s in self.substeps]
         }
 
-    def to_markdown(self, level: int = 0) -> str:
-        """
-        Adimlari hiyerarsik Markdown formatinda dondurur.
-        Front-end veya terminal ciktisi icin kullanislidir.
-        """
-        indent = " " * (level * 4) # 4 bosluklu indent
-        
-        # Baslik / Aciklama
-        # Markdown list item olarak basla
-        md_out = f"{indent}- **{self.description}**\n"
-        
-        # Matematik Icerigi
-        # Eger giris ve cikis farkliysa => isaretiyle goster
-        # Eger cikis bos ise sadece girisi goster
-        if self.input_latex:
-            if self.output_latex and self.output_latex != self.input_latex:
-                md_out += f"{indent}  Input: `{self.input_latex}`\n"
-                md_out += f"{indent}  Output: `{self.output_latex}`\n"
-            else:
-                # Sadece input var veya degisim yok
-                md_out += f"{indent}  Expr: `{self.input_latex}`\n"
-        
-        # Alt adimlar
-        for sub in self.substeps:
-            md_out += sub.to_markdown(level + 1)
-            
-        return md_out
-
 # --- 2. INTEGRAL KURAL CEVIRICISI (SAFE CONVERTER) ---
 class IntegralConverter:
     """
@@ -116,16 +88,16 @@ class IntegralConverter:
 
 
         elif isinstance(rule, PartsRule):
-            step.description = "Kismi Integrasyon (Integration by Parts): u ve dv secimi ile formul uygulanir"
+            step.description = "Kismi Integrasyon (Integration by Parts): Kurala gore u ve dv secilir ve formul uygulanir"
             # PartsRule -> u, dv, second_step (Rule)
             u_latex = latex(rule.u)
             dv_latex = latex(rule.dv)
-            step.output_latex = f"u={u_latex}, \\quad dv={dv_latex} \\Rightarrow uv-\\int v du"
+            step.output_latex = f"u={u_latex}, \\quad dv={dv_latex},\\quad uv-\\int vdu"
             
             # u dv yi bulduktan sonra dv den vye dönüşüm için integral
             if rule.v_step:
                  v_step_obj = self.convert(rule.v_step, None)
-                 v_step_obj.description = f"dv'den v'yi bulma:"
+                 v_step_obj.description = f"dv'den v'yi bulma adimi: " + v_step_obj.description
                  step.substeps.append(v_step_obj)
             
             # kalan integral adimi (second_step)
@@ -140,7 +112,7 @@ class IntegralConverter:
         elif isinstance(rule, URule):
             step.description = "Degisken Degistirme (U-Substitution)"
             u_latex = latex(rule.u_func)
-            step.output_latex = f"u = {u_latex}, \\quad \\int ... du"
+            step.output_latex = f"u = {u_latex}, \\quad \\int {latex(rule.substep.integrand)} du"
             
             # URule -> substep 
             if rule.substep:
@@ -152,7 +124,7 @@ class IntegralConverter:
             step.description = "Yeniden Yazma (Rewrite)"
             # RewriteRule -> rewritten (Expr), substep (Rule)
             rewritten_latex = latex(rule.rewritten)
-            step.output_latex = f"Form: {rewritten_latex}"
+            step.output_latex = f"\\rightarrow {rewritten_latex}"
             if rule.substep:
                 step.substeps.append(self.convert(rule.substep, getattr(rule, 'rewritten', None)))
         
@@ -168,9 +140,9 @@ class IntegralConverter:
 
 
         elif isinstance(rule, ConstantTimesRule):
-            step.description = "Sabit Katsayi Kurali: Sabit integral disina cikar."
+            step.description = "Sabit Katsayi Kurali: Sabit sayi integralin disina alinir."
             const = getattr(rule, 'constant', '')
-            step.output_latex = fr"{const} \cdot \int ..."
+            step.output_latex = fr"{const} \int {latex(rule.substep.integrand)}d{rule.variable}"
             if rule.substep:
                 step.substeps.append(self.convert(rule.substep, None))
 
@@ -180,16 +152,16 @@ class IntegralConverter:
 
         elif isinstance(rule, AtomicRule):
 
-            if isinstance(rule, ConstantRule): step.description = "Sabit Kurali: \\int c dx = cx"
-            elif isinstance(rule, PowerRule): step.description = "Us Kurali: \\int x^n dx = x^{n+1}/(n+1)"
-            elif isinstance(rule, ReciprocalRule): step.description = "Logaritmik Kural: \\int 1/x dx = ln|x|"
-            elif isinstance(rule, ExpRule): step.description = "Ustel Kural: \\int a^x dx = a^x/ln(a)"
-            elif isinstance(rule, TrigRule): step.description = "Trigonometrik Integral"
-            elif isinstance(rule, NestedPowRule): step.description = "Ussun Ussu Kurali"
-            elif isinstance(rule, HyperbolicRule): step.description = "Hiperbolik Integral"
+            if isinstance(rule, ConstantRule): step.description = "Sabit Kurali: Sabit sayinin integrali, sayi ile integral degiskeninin carpimidir."
+            elif isinstance(rule, PowerRule): step.description = "Us Kurali (Power Rule): Us bir arttirilir, ifade olusan yeni usse bolunur."
+            elif isinstance(rule, ReciprocalRule): step.description = "Sonucu ln(x) gelen integral"
+            elif isinstance(rule, ExpRule): step.description = "Ustel Fonksiyon Integrali: Ustel fonksiyon aynen yazilir, ln(taban)'a bolunur (a^x/ln(a))"
+            elif isinstance(rule, TrigRule): step.description = "Trigonometrik Fonksiyon Integrali"
+            elif isinstance(rule, NestedPowRule): step.description = "Ussun ussu kurali"
+            elif isinstance(rule, HyperbolicRule): step.description = "Hiperobolik Fonksiyon Integrali"
 
             # eger bulunan temel kural implement edilmemisse diye fallback
-            else: step.description = f"Temel Kural: {rule_name}"
+            else: step.description = f"Kural: {rule_name}"
 
             step.output_latex = latex(rule.eval())
 
@@ -197,7 +169,7 @@ class IntegralConverter:
         # --- C. FALLBACK (DIGER TUM DURUMLAR) ---
         
         elif isinstance(rule, DontKnowRule):
-            step.description = "Cozum adimi otomatik belirlenemedi."
+            step.description = "Otomatik cozum bulunamadi."
 
         else:
             # TrigSubstitutionRule vb. import edilmeyen ama donebilen kurallar icin
@@ -229,19 +201,10 @@ class MathSolver:
             return {
                 "input_latex": latex_input,
                 "result_latex": latex(final_res),
-                "steps": result_step, # objeyi donelim ki metodlari kullanabilelim, dict lazimsa disarida cevrilir
-                "steps_dict": result_step.to_dict() # uyumluluk icin
+                "steps": result_step.to_dict()
             }
         except Exception as e:
-            # Hata durumunda dahi dummy step donelim
-            err_step = MathStep("Error", "Error", latex_input, "", str(e))
-            return {
-                "input_latex": latex_input,
-                "result_latex": "",
-                "steps": err_step,
-                "steps_dict": err_step.to_dict(),
-                "error": str(e)
-            }
+            return {"error": str(e), "details": "Parse veya cozum hatasi"}
 
     def _traverse_expr(self, expr: Basic) -> MathStep:
         """
@@ -282,7 +245,7 @@ class MathSolver:
                     
                 return step
             except Exception as e:
-                return MathStep("Error", "IntegralError", latex(expr), "", f"Steps error: {str(e)}")
+                return MathStep("Error", "IntegralError", latex(expr), "", str(e))
 
         # --- DURUM 2: TUREV ---
         elif isinstance(expr, Derivative):
@@ -323,29 +286,21 @@ class MathSolver:
 if __name__ == "__main__":
     solver = MathSolver()
     
-    test_cases = [
-        r"\int x^2 dx",
-        r"\int 2x \cos(x^2) dx",
-        r"\int_0^1 (3x^2 + 2) dx"
-    ]
-    
-    print("=== COZUM ADIMLARI SUNUM DEMOSU ===\n")
-    
-    for i, latex_in in enumerate(test_cases, 1):
-        print(f"--- ORNEK {i}: {latex_in} ---")
-        res = solver.solve(latex_in)
-        
-        if "error" in res:
-            print(f"HATA: {res['error']}")
-        else:
-            print(f"SONUC: {res['result_latex']}\n")
-            print("ADIMLAR (Markdown):")
-            
-            # MathStep objesini alip markdown yazdir
-            steps_obj = res["steps"]
-            print(steps_obj.to_markdown())
-            
-        print("-" * 50 + "\n")
+    """
+    # SENARYO 1: Parcali Fonksiyon Testi (Piecewise)
+    # PiecewiseRule tetikleyebilecek bir yapi (or: Heaviside veya Min/Max)
+    # Not: Standart Abs(x) integral_steps'te bazen Piecewise dondurur.
+    print("--- Test 1: Piecewise / Abs ---")
+    res1 = solver.solve(r"\int |x| dx")
+    print(json.dumps(res1, indent=2))
+    """
+
+    """
+    # SENARYO 2: Kismi Integrasyon (PartsRule)
+    print("\n--- Test 2: Parts ---")
+    res2 = solver.solve(r"\int x e^x dx")
+    print(json.dumps(res2, indent=2))
+    """
     
     
     # SENARYO 3: Belirli Integral + Sabit
