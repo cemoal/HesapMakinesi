@@ -10,7 +10,7 @@ def latex_tokenize(s: str):
     s = s.strip()
     tokens = re.findall(r'(\\[A-Za-z]+)|[{}_^]|[\[\]\(\)]|[0-9]+|[A-Za-z]+|[^ \t\n]', s)
     return tokens
-
+# kendi yolunuza göre yapmanız lazım
 CSV_PATH = r"C:\Users\cemal\OneDrive\Desktop\Proje_Egitim\im2latex_validate.csv"
 IMAGE_FOLDER = r"C:\Users\cemal\OneDrive\Desktop\Proje_Egitim\formula_images_processed"
 
